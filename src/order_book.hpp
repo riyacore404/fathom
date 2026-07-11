@@ -7,6 +7,7 @@
 #include <vector>
 #include <algorithm>   
 #include <functional>
+#include <iterator> 
 
 namespace fathom {
 
@@ -42,8 +43,11 @@ struct PriceLevel {
 
 class OrderBook {
 public:
+    explicit OrderBook(size_t max_levels = 10);   // default matches our level-10 data
+
     void insert_limit_order(OrderId id, Price price, Qty qty, Side side);
     void cancel_order(OrderId id);
+    void reduce_order_qty(OrderId id, Qty amount);
     std::vector<Fill> match_market_order(Qty qty, Side side);
 
     std::optional<Price> best_bid() const;
@@ -56,6 +60,9 @@ private:
 
     struct OrderLocation { Price price; Side side; };
     std::unordered_map<OrderId, OrderLocation> order_index_;
+
+    size_t max_levels_;
+    void enforce_level_cap();
 };
 
 } // namespace fathom

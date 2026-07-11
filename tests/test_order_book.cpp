@@ -112,3 +112,77 @@ TEST_CASE("sell market order matches against bids, highest price first") {
     REQUIRE(fills.size() == 1);
     REQUIRE(fills[0].price == 10000);  // best (highest bid) price consumed first
 }
+
+TEST_CASE("reduce_order_qty shrinks an order without removing it if qty remains") {
+    fathom::OrderBook book;
+    book.insert_limit_order(1, 10000, 10, fathom::Side::Buy);
+    book.reduce_order_qty(1, 4);
+    REQUIRE(book.depth_at_price(10000, fathom::Side::Buy) == 6);
+    REQUIRE(book.best_bid().has_value());
+}
+
+TEST_CASE("reduce_order_qty removes the order entirely if it hits zero") {
+    fathom::OrderBook book;
+    book.insert_limit_order(1, 10000, 5, fathom::Side::Buy);
+    book.reduce_order_qty(1, 5);
+    REQUIRE_FALSE(book.best_bid().has_value());
+}
+
+TEST_CASE("reduce_order_qty preserves other orders' queue position") {
+    fathom::OrderBook book;
+    book.insert_limit_order(1, 10000, 5, fathom::Side::Buy);
+    book.insert_limit_order(2, 10000, 3, fathom::Side::Buy);
+    book.reduce_order_qty(1, 2);  // order 1: 5 -> 3, order 2 untouched
+    REQUIRE(book.depth_at_price(10000, fathom::Side::Buy) == 6);  // 3 + 3
+}
+
+TEST_CASE("enforce_level_cap keeps only the best N price levels on the bid side") {
+    fathom::OrderBook book(3);  // cap at 3 levels for this test
+    book.insert_limit_order(1, 10000, 5, fathom::Side::Buy);
+    book.insert_limit_order(2, 10010, 5, fathom::Side::Buy);
+    book.insert_limit_order(3, 10020, 5, fathom::Side::Buy);
+    book.insert_limit_order(4, 10030, 5, fathom::Side::Buy);  // should push out the worst level
+
+    REQUIRE(book.best_bid().value() == 10030);
+    REQUIRE(book.depth_at_price(10000, fathom::Side::Buy) == 0);  // dropped, worst price
+    REQUIRE(book.depth_at_price(10010, fathom::Side::Buy) == 5);  // kept
+}
+
+TEST_CASE("enforce_level_cap keeps only the best N price levels on the ask side") {
+    fathom::OrderBook book(3);
+    book.insert_limit_order(1, 10040, 5, fathom::Side::Sell);
+    book.insert_limit_order(2, 10030, 5, fathom::Side::Sell);
+    book.insert_limit_order(3, 10020, 5, fathom::Side::Sell);
+    book.insert_limit_order(4, 10010, 5, fathom::Side::Sell);  // should push out the worst level
+
+    REQUIRE(book.best_ask().value() == 10010);
+    REQUIRE(book.depth_at_price(10040, fathom::Side::Sell) == 0);  // dropped, worst price
+}
+
+TEST_CASE("dropped level's orders no longer respond to cancel or reduce") {
+    fathom::OrderBook book(1);  // cap at 1 level to force a drop immediately
+    book.insert_limit_order(1, 10000, 5, fathom::Side::Buy);
+    book.insert_limit_order(2, 10010, 5, fathom::Side::Buy);  // drops order 1's level
+
+    book.cancel_order(1);   // should be a silent no-op, order 1 is already forgotten
+    REQUIRE(book.best_bid().value() == 10010);  // unaffected
+}
+
+TEST_CASE("marketable buy limit order matches immediately instead of resting") {
+    fathom::OrderBook book;
+    book.insert_limit_order(1, 10000, 5, fathom::Side::Sell);   // resting ask
+    book.insert_limit_order(2, 10000, 5, fathom::Side::Buy);    // buy at the touch -> should match, not rest
+
+    REQUIRE_FALSE(book.best_ask().has_value());  // ask fully consumed
+    REQUIRE_FALSE(book.best_bid().has_value());  // buy fully matched, nothing rests
+}
+
+TEST_CASE("marketable buy limit order with leftover quantity rests the remainder") {
+    fathom::OrderBook book;
+    book.insert_limit_order(1, 10000, 5, fathom::Side::Sell);
+    book.insert_limit_order(2, 10000, 8, fathom::Side::Buy);   // more than available
+
+    REQUIRE_FALSE(book.best_ask().has_value());               // ask fully consumed
+    REQUIRE(book.best_bid().value() == 10000);                // remainder (3) rests
+    REQUIRE(book.depth_at_price(10000, fathom::Side::Buy) == 3);
+}
