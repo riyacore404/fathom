@@ -13,3 +13,12 @@ struct LobsterMessage {
 };
 
 std::vector<LobsterMessage> parse_lobster_messages(const std::string& path);
+
+struct LobsterBookSnapshot {
+    std::vector<fathom::Price> ask_prices;   // index 0 = level 1 (best), index 1 = level 2, etc.
+    std::vector<fathom::Qty>   ask_sizes;
+    std::vector<fathom::Price> bid_prices;
+    std::vector<fathom::Qty>   bid_sizes;
+};
+
+std::vector<LobsterBookSnapshot> parse_lobster_orderbook(const std::string& path, int num_levels);

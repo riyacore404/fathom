@@ -2,9 +2,8 @@
 
 namespace fathom {
 
-void OrderBook::insert_limit_order(OrderId id, Price price, Qty qty, Side side) {
+void OrderBook::insert_limit_order(OrderId id, Price price, Qty qty, Side side, bool is_strategy_order) {
     if (side == Side::Buy) {
-        // marketable if our buy price >= the current best ask
         auto it = asks_.begin();
         while (qty > 0 && it != asks_.end() && price >= it->first) {
             auto& dq = it->second.orders;
@@ -13,6 +12,11 @@ void OrderBook::insert_limit_order(OrderId id, Price price, Qty qty, Side side) 
                 Qty traded = std::min(qty, resting.qty);
                 resting.qty -= traded;
                 qty -= traded;
+
+                if (resting.is_strategy_order && fill_callback_) {
+                    fill_callback_(Fill{id, resting.id, it->first, traded});
+                }
+
                 if (resting.qty == 0) {
                     order_index_.erase(resting.id);
                     dq.pop_front();
@@ -22,7 +26,6 @@ void OrderBook::insert_limit_order(OrderId id, Price price, Qty qty, Side side) 
             else ++it;
         }
     } else {
-        // marketable if our sell price <= the current best bid
         auto it = bids_.begin();
         while (qty > 0 && it != bids_.end() && price <= it->first) {
             auto& dq = it->second.orders;
@@ -31,6 +34,11 @@ void OrderBook::insert_limit_order(OrderId id, Price price, Qty qty, Side side) 
                 Qty traded = std::min(qty, resting.qty);
                 resting.qty -= traded;
                 qty -= traded;
+
+                if (resting.is_strategy_order && fill_callback_) {
+                    fill_callback_(Fill{id, resting.id, it->first, traded});
+                }
+
                 if (resting.qty == 0) {
                     order_index_.erase(resting.id);
                     dq.pop_front();
@@ -42,16 +50,17 @@ void OrderBook::insert_limit_order(OrderId id, Price price, Qty qty, Side side) 
     }
 
     if (qty > 0) {
-        Order o{id, price, qty, side};
-        if (side == Side::Buy) {
-            bids_[price].orders.push_back(o);
-        } else {
-            asks_[price].orders.push_back(o);
-        }
+        Order o{id, price, qty, side, is_strategy_order};
+        if (side == Side::Buy) bids_[price].orders.push_back(o);
+        else asks_[price].orders.push_back(o);
         order_index_[id] = OrderLocation{price, side};
     }
 
     enforce_level_cap();
+}
+
+void OrderBook::set_fill_callback(std::function<void(const Fill&)> cb) {
+    fill_callback_ = std::move(cb);
 }
 
 void OrderBook::cancel_order(OrderId id) {
@@ -157,7 +166,7 @@ Qty OrderBook::depth_at_price(Price price, Side side) const {
 
 void OrderBook::reduce_order_qty(OrderId id, Qty amount) {
     auto it = order_index_.find(id);
-    if (it == order_index_.end()) return;  // unknown id, ignore
+    if (it == order_index_.end()) return;
 
     auto [price, side] = it->second;
 
@@ -167,7 +176,11 @@ void OrderBook::reduce_order_qty(OrderId id, Qty amount) {
         auto& dq = level_it->second.orders;
         for (auto& o : dq) {
             if (o.id == id) {
+                Qty traded = std::min(amount, o.qty);
                 o.qty -= amount;
+                if (o.is_strategy_order && fill_callback_) {
+                    fill_callback_(Fill{0, o.id, price, traded});
+                }
                 if (o.qty <= 0) {
                     dq.erase(std::remove_if(dq.begin(), dq.end(),
                                              [id](const Order& x) { return x.id == id; }),
@@ -184,7 +197,11 @@ void OrderBook::reduce_order_qty(OrderId id, Qty amount) {
         auto& dq = level_it->second.orders;
         for (auto& o : dq) {
             if (o.id == id) {
+                Qty traded = std::min(amount, o.qty);
                 o.qty -= amount;
+                if (o.is_strategy_order && fill_callback_) {
+                    fill_callback_(Fill{0, o.id, price, traded});
+                }
                 if (o.qty <= 0) {
                     dq.erase(std::remove_if(dq.begin(), dq.end(),
                                              [id](const Order& x) { return x.id == id; }),

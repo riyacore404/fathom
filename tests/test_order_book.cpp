@@ -186,3 +186,27 @@ TEST_CASE("marketable buy limit order with leftover quantity rests the remainder
     REQUIRE(book.best_bid().value() == 10000);                // remainder (3) rests
     REQUIRE(book.depth_at_price(10000, fathom::Side::Buy) == 3);
 }
+
+TEST_CASE("fill callback fires when a strategy order is consumed by an incoming order") {
+    fathom::OrderBook book;
+    std::vector<fathom::Fill> received;
+    book.set_fill_callback([&received](const fathom::Fill& f) { received.push_back(f); });
+
+    book.insert_limit_order(1, 10000, 10, fathom::Side::Buy, /*is_strategy_order=*/true);
+    book.insert_limit_order(2, 10000, 4, fathom::Side::Sell, false);   // real order hits ours
+
+    REQUIRE(received.size() == 1);
+    REQUIRE(received[0].qty == 4);
+    REQUIRE(received[0].price == 10000);
+}
+
+TEST_CASE("fill callback does not fire for non-strategy orders") {
+    fathom::OrderBook book;
+    std::vector<fathom::Fill> received;
+    book.set_fill_callback([&received](const fathom::Fill& f) { received.push_back(f); });
+
+    book.insert_limit_order(1, 10000, 10, fathom::Side::Buy, false);   // not ours
+    book.insert_limit_order(2, 10000, 4, fathom::Side::Sell, false);
+
+    REQUIRE(received.empty());
+}
