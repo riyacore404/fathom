@@ -1,4 +1,0 @@
-/Users/riyarani/Desktop/fathom/build/CMakeFiles/fathom.dir
-/Users/riyarani/Desktop/fathom/build/CMakeFiles/fathom_tests.dir
-/Users/riyarani/Desktop/fathom/build/CMakeFiles/edit_cache.dir
-/Users/riyarani/Desktop/fathom/build/CMakeFiles/rebuild_cache.dir
