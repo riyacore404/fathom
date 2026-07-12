@@ -1,18 +1,42 @@
 #include "lobster_parser.hpp"
 #include "replay.hpp"
 #include "order_book.hpp"
+#include "config.hpp"
 #include "strategies/passive_quote_strategy.hpp"
 #include <iostream>
 #include <chrono>
+#include <string>
 
-int main() {
+Config parse_args(int argc, char** argv) {
+    Config cfg;
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--ticker" && i + 1 < argc) cfg.ticker = argv[++i];
+        else if (arg == "--date" && i + 1 < argc) cfg.date = argv[++i];
+        else if (arg == "--level" && i + 1 < argc) cfg.level = std::stoi(argv[++i]);
+        else if (arg == "--data-dir" && i + 1 < argc) cfg.data_dir = argv[++i];
+        else if (arg == "--help") {
+            std::cout << "Usage: fathom [--ticker SYM] [--date YYYY-MM-DD] "
+                         "[--level N] [--data-dir PATH]\n"
+                      << "Defaults: --ticker AMZN --date 2012-06-21 --level 10 --data-dir data\n";
+            std::exit(0);
+        } else {
+            throw std::invalid_argument("unrecognized argument: " + arg);
+        }
+    }
+    return cfg;
+}
+
+int main(int argc, char** argv) {
     try {
-        auto messages = parse_lobster_messages(
-            "data/AMZN_2012-06-21_34200000_57600000_message_10.csv");
+        Config cfg = parse_args(argc, argv);
+        std::string path = message_file_path(cfg);   // <-- now comes from config.hpp/config.cpp
 
+        std::cout << "loading: " << path << "\n";
+        auto messages = parse_lobster_messages(path);
         std::cout << "loaded " << messages.size() << " messages\n";
 
-        fathom::OrderBook book(10);
+        fathom::OrderBook book(cfg.level);
         PassiveQuoteStrategy strategy;
 
         auto start = std::chrono::steady_clock::now();
