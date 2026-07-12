@@ -210,3 +210,19 @@ TEST_CASE("fill callback does not fire for non-strategy orders") {
 
     REQUIRE(received.empty());
 }
+
+TEST_CASE("OrderBook constructor rejects zero max_levels") {
+    REQUIRE_THROWS_AS(fathom::OrderBook(0), std::invalid_argument);
+}
+
+TEST_CASE("insert_limit_order rejects zero or negative quantity") {
+    fathom::OrderBook book;
+    REQUIRE_THROWS_AS(book.insert_limit_order(1, 10000, 0, fathom::Side::Buy), std::invalid_argument);
+    REQUIRE_THROWS_AS(book.insert_limit_order(1, 10000, -5, fathom::Side::Buy), std::invalid_argument);
+}
+
+TEST_CASE("insert_limit_order rejects zero or negative price") {
+    fathom::OrderBook book;
+    REQUIRE_THROWS_AS(book.insert_limit_order(1, 0, 5, fathom::Side::Buy), std::invalid_argument);
+    REQUIRE_THROWS_AS(book.insert_limit_order(1, -100, 5, fathom::Side::Buy), std::invalid_argument);
+}

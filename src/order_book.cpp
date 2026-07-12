@@ -1,8 +1,16 @@
 #include "order_book.hpp"
+#include <stdexcept>
 
 namespace fathom {
 
 void OrderBook::insert_limit_order(OrderId id, Price price, Qty qty, Side side, bool is_strategy_order) {
+    if (qty <= 0) {
+        throw std::invalid_argument("insert_limit_order: qty must be positive, got " + std::to_string(qty));
+    }
+    if (price <= 0) {
+        throw std::invalid_argument("insert_limit_order: price must be positive, got " + std::to_string(price));
+    }
+    
     if (side == Side::Buy) {
         auto it = asks_.begin();
         while (qty > 0 && it != asks_.end() && price >= it->first) {
@@ -215,7 +223,11 @@ void OrderBook::reduce_order_qty(OrderId id, Qty amount) {
     }
 }
 
-OrderBook::OrderBook(size_t max_levels) : max_levels_(max_levels) {}
+OrderBook::OrderBook(size_t max_levels) : max_levels_(max_levels) {
+    if (max_levels == 0) {
+        throw std::invalid_argument("OrderBook: max_levels must be at least 1");
+    }
+}
 
 void OrderBook::enforce_level_cap() {
     // bids_ is sorted best-to-worst (highest price first), so the worst
