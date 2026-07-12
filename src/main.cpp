@@ -3,9 +3,11 @@
 #include "order_book.hpp"
 #include "config.hpp"
 #include "strategies/passive_quote_strategy.hpp"
+#include "strategies/naive_instant_fill_strategy.hpp"
 #include <iostream>
 #include <chrono>
 #include <string>
+#include <iomanip>
 
 Config parse_args(int argc, char** argv) {
     Config cfg;
@@ -27,32 +29,47 @@ Config parse_args(int argc, char** argv) {
     return cfg;
 }
 
+void print_metrics_row(const std::string& label, const MetricsTracker& m) {
+    std::cout << std::left << std::setw(12) << label
+              << " | fills: " << std::setw(3) << m.total_fills()
+              << " | fill rate: " << std::setw(6) << (m.fill_rate() * 100.0) << "%"
+              << " | avg time-to-fill: " << std::setw(8) << m.average_time_to_fill() << "s"
+              << " | avg slippage vs mid: " << m.average_slippage_ticks() << " ticks\n";
+}
+
 int main(int argc, char** argv) {
     try {
         Config cfg = parse_args(argc, argv);
-        std::string path = message_file_path(cfg);   // <-- now comes from config.hpp/config.cpp
+        std::string path = message_file_path(cfg);
 
         std::cout << "loading: " << path << "\n";
         auto messages = parse_lobster_messages(path);
-        std::cout << "loaded " << messages.size() << " messages\n";
+        std::cout << "loaded " << messages.size() << " messages\n\n";
 
-        fathom::OrderBook book(cfg.level);
-        PassiveQuoteStrategy strategy;
+        // --- Realistic: passive resting order, real queue-position replay ---
+        fathom::OrderBook realistic_book(cfg.level);
+        PassiveQuoteStrategy realistic_strategy;
+        replay_with_strategy(realistic_book, messages, realistic_strategy);
 
-        auto start = std::chrono::steady_clock::now();
-        replay_with_strategy(book, messages, strategy);
-        auto end = std::chrono::steady_clock::now();
-        auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        // --- Naive: hypothetical instant fill at the ask, no real book interaction ---
+        fathom::OrderBook naive_book(cfg.level);
+        NaiveInstantFillStrategy naive_strategy;
+        replay_with_strategy(naive_book, messages, naive_strategy);
 
-        std::cout << "\nreplay took " << elapsed_ms << " ms for " << messages.size() << " messages\n";
+        std::cout << "\n=== NAIVE vs REALISTIC EXECUTION COMPARISON ===\n";
+        std::cout << "(same intended trade: buy 10 shares, same historical data)\n\n";
+        print_metrics_row("Naive", naive_strategy.metrics());
+        print_metrics_row("Realistic", realistic_strategy.metrics());
 
-        const auto& m = strategy.metrics();
-        std::cout << "\n--- METRICS ---\n";
-        std::cout << "total placements: " << m.total_placements() << "\n";
-        std::cout << "total fills: " << m.total_fills() << "\n";
-        std::cout << "fill rate: " << (m.fill_rate() * 100.0) << "%\n";
-        std::cout << "average time-to-fill: " << m.average_time_to_fill() << " seconds\n";
-        std::cout << "average slippage: " << m.average_slippage_ticks() << " ticks\n";
+        const auto& real_m = realistic_strategy.metrics();
+        const auto& naive_m = naive_strategy.metrics();
+
+        std::cout << "\nPrice improvement from resting passively instead of crossing the spread: "
+                  << (naive_m.average_slippage_ticks() - real_m.average_slippage_ticks())
+                  << " ticks better execution price\n";
+        std::cout << "Cost of that improvement: "
+                  << real_m.average_time_to_fill() << " seconds of queue-wait risk "
+                  << "(vs. 0s guaranteed instant fill for naive)\n";
 
     } catch (const std::exception& e) {
         std::cerr << "fathom: fatal error: " << e.what() << "\n";
