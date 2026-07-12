@@ -4,7 +4,7 @@ project(fathom)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_executable(fathom src/main.cpp src/config.cpp src/order_book.cpp src/lobster_parser.cpp src/replay.cpp src/metrics.cpp)
+add_executable(fathom src/main.cpp src/config.cpp src/order_book.cpp src/lobster_parser.cpp src/replay.cpp src/metrics.cpp src/impact_logger.cpp)
 target_include_directories(fathom PRIVATE src)
 
 find_package(Catch2 3 REQUIRED)

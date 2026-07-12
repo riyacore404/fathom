@@ -2,6 +2,7 @@
 #include "replay.hpp"
 #include "order_book.hpp"
 #include "config.hpp"
+#include "impact_logger.hpp"
 #include "strategies/passive_quote_strategy.hpp"
 #include "strategies/naive_instant_fill_strategy.hpp"
 #include <iostream>
@@ -17,10 +18,13 @@ Config parse_args(int argc, char** argv) {
         else if (arg == "--date" && i + 1 < argc) cfg.date = argv[++i];
         else if (arg == "--level" && i + 1 < argc) cfg.level = std::stoi(argv[++i]);
         else if (arg == "--data-dir" && i + 1 < argc) cfg.data_dir = argv[++i];
+        else if (arg == "--log-impact-data") cfg.log_impact_data = true;
+        else if (arg == "--impact-horizon" && i + 1 < argc) cfg.impact_horizon_messages = std::stoi(argv[++i]);
         else if (arg == "--help") {
-            std::cout << "Usage: fathom [--ticker SYM] [--date YYYY-MM-DD] "
-                         "[--level N] [--data-dir PATH]\n"
-                      << "Defaults: --ticker AMZN --date 2012-06-21 --level 10 --data-dir data\n";
+            std::cout << "Usage: fathom [--ticker SYM] [--date YYYY-MM-DD] [--level N] "
+                         "[--data-dir PATH] [--log-impact-data] [--impact-horizon N]\n"
+                      << "Defaults: --ticker AMZN --date 2012-06-21 --level 10 --data-dir data "
+                         "--impact-horizon 20\n";
             std::exit(0);
         } else {
             throw std::invalid_argument("unrecognized argument: " + arg);
@@ -45,6 +49,16 @@ int main(int argc, char** argv) {
         std::cout << "loading: " << path << "\n";
         auto messages = parse_lobster_messages(path);
         std::cout << "loaded " << messages.size() << " messages\n\n";
+
+        if (cfg.log_impact_data) {
+            std::string out_path = cfg.data_dir + "/" + cfg.ticker + "_impact_features.csv";
+            std::cout << "logging trade impact features (horizon=" << cfg.impact_horizon_messages
+                      << " messages) to " << out_path << "...\n";
+            size_t written = log_trade_impact_features(messages, cfg.level,
+                                                         cfg.impact_horizon_messages, out_path);
+            std::cout << "wrote " << written << " feature rows\n";
+            return 0;
+        }
 
         // --- Realistic: passive resting order, real queue-position replay ---
         fathom::OrderBook realistic_book(cfg.level);
