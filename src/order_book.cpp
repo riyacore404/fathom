@@ -251,4 +251,21 @@ void OrderBook::enforce_level_cap() {
     }
 }
 
+Qty OrderBook::aggregate_depth(Side side, int levels) const {
+    Qty total = 0;
+    int count = 0;
+    if (side == Side::Buy) {
+        for (const auto& [price, level] : bids_) {
+            if (count++ >= levels) break;
+            total += level.total_qty();
+        }
+    } else {
+        for (const auto& [price, level] : asks_) {
+            if (count++ >= levels) break;
+            total += level.total_qty();
+        }
+    }
+    return total;
+}
+
 } // namespace fathom

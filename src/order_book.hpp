@@ -55,6 +55,7 @@ public:
     std::optional<Price> best_bid() const;
     std::optional<Price> best_ask() const;
     Qty depth_at_price(Price price, Side side) const;
+    Qty aggregate_depth(Side side, int levels) const;
 
 private:
     std::map<Price, PriceLevel, std::greater<Price>> bids_;

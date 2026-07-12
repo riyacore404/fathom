@@ -13,11 +13,13 @@ add_executable(fathom_tests
     tests/test_metrics.cpp
     tests/test_lobster_parser.cpp
     tests/test_naive_strategy.cpp
+    tests/test_impact_logger.cpp
     src/config.cpp
     src/order_book.cpp
     src/lobster_parser.cpp
     src/replay.cpp
     src/metrics.cpp
+    src/impact_logger.cpp
 )
 target_include_directories(fathom_tests PRIVATE src)
 target_link_libraries(fathom_tests PRIVATE Catch2::Catch2WithMain)

@@ -298,3 +298,14 @@ TEST_CASE("depth_at_price for a price level that was never used returns zero") {
     book.insert_limit_order(1, 10000, 5, fathom::Side::Buy);
     REQUIRE(book.depth_at_price(99999, fathom::Side::Buy) == 0);
 }
+
+TEST_CASE("aggregate_depth sums quantity across the requested number of best price levels") {
+    fathom::OrderBook book;
+    book.insert_limit_order(1, 10000, 5, fathom::Side::Buy);
+    book.insert_limit_order(2, 9990, 3, fathom::Side::Buy);
+    book.insert_limit_order(3, 9980, 7, fathom::Side::Buy);
+
+    REQUIRE(book.aggregate_depth(fathom::Side::Buy, 1) == 5);
+    REQUIRE(book.aggregate_depth(fathom::Side::Buy, 2) == 8);
+    REQUIRE(book.aggregate_depth(fathom::Side::Buy, 10) == 15);  // more levels requested than exist
+}
