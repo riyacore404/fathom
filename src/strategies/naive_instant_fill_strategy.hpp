@@ -23,8 +23,6 @@ public:
                 metrics_.record_placement(synthetic_id, current_time_, *ask, qty, mid);
                 metrics_.record_fill(synthetic_id, current_time_, qty, *ask);
 
-                std::cout << "NAIVE FILL (instant, hypothetical) qty=" << qty
-                          << " price=" << *ask << "\n";
                 placed_ = true;
             }
         }
