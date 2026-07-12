@@ -24,17 +24,14 @@ void replay_with_strategy(fathom::OrderBook& book,
                            fathom::Strategy& strategy) {
     book.set_fill_callback([&strategy](const fathom::Fill& f) { strategy.on_fill(f); });
 
-    // strategy order ids live in a namespace far above LOBSTER's real order ids
-    // (which run in the tens of millions in this dataset) so they never collide
-    fathom::OrderId next_strategy_id = 1'000'000'000'000ULL;
-
     for (const auto& msg : messages) {
         apply_lobster_message(book, msg);
+        strategy.set_current_time(msg.time);
 
         auto actions = strategy.on_book_update(book);
         for (const auto& action : actions) {
             if (action.type == fathom::ActionType::PlaceLimit) {
-                book.insert_limit_order(next_strategy_id++, action.price, action.qty,
+                book.insert_limit_order(action.order_id, action.price, action.qty,
                                          action.side, /*is_strategy_order=*/true);
             } else if (action.type == fathom::ActionType::Cancel) {
                 book.cancel_order(action.order_id);

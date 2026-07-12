@@ -1,17 +1,24 @@
 #pragma once
 #include "strategy.hpp"
+#include "metrics.hpp"
 #include <iostream>
 
-// Places a single resting buy order once, then does nothing else.
-// This exists purely to prove the injection/fill plumbing works end to end.
 class PassiveQuoteStrategy : public fathom::Strategy {
 public:
     std::vector<fathom::StrategyAction> on_book_update(const fathom::OrderBook& book) override {
         std::vector<fathom::StrategyAction> actions;
+        current_time_ = last_seen_time_;  // updated externally, see main.cpp
+
         if (!placed_) {
             auto bid = book.best_bid();
-            if (bid.has_value()) {
-                actions.push_back({fathom::ActionType::PlaceLimit, 0, *bid, 10, fathom::Side::Buy});
+            auto ask = book.best_ask();
+            if (bid.has_value() && ask.has_value()) {
+                fathom::OrderId id = next_id_++;
+                fathom::Qty qty = 10;
+                fathom::Price mid = (*bid + *ask) / 2;
+
+                actions.push_back({fathom::ActionType::PlaceLimit, id, *bid, qty, fathom::Side::Buy});
+                metrics_.record_placement(id, current_time_, *bid, qty, mid);
                 placed_ = true;
             }
         }
@@ -19,14 +26,17 @@ public:
     }
 
     void on_fill(const fathom::Fill& fill) override {
-        fill_count_++;
-        std::cout << "STRATEGY FILL #" << fill_count_
-                  << " qty=" << fill.qty << " price=" << fill.price << "\n";
+        metrics_.record_fill(fill.maker_id, current_time_, fill.qty, fill.price);
+        std::cout << "STRATEGY FILL qty=" << fill.qty << " price=" << fill.price << "\n";
     }
 
-    int fill_count() const { return fill_count_; }
+    void set_current_time(double t) override { last_seen_time_ = t; }
+    const MetricsTracker& metrics() const { return metrics_; }
 
 private:
     bool placed_ = false;
-    int fill_count_ = 0;
+    double current_time_ = 0.0;
+    double last_seen_time_ = 0.0;
+    fathom::OrderId next_id_ = 1'000'000'000'000ULL;  // stays clear of real LOBSTER ids
+    MetricsTracker metrics_;
 };

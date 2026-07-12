@@ -19,6 +19,7 @@ public:
     virtual ~Strategy() = default;
     virtual std::vector<StrategyAction> on_book_update(const OrderBook& book) = 0;
     virtual void on_fill(const Fill& fill) = 0;
+    virtual void set_current_time(double time) {}  
 };
 
 } // namespace fathom

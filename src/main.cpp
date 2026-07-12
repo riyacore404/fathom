@@ -15,6 +15,13 @@ int main() {
 
     replay_with_strategy(book, messages, strategy);
 
-    std::cout << "total fills: " << strategy.fill_count() << "\n";
+    const auto& m = strategy.metrics();
+    std::cout << "\n--- METRICS ---\n";
+    std::cout << "total placements: " << m.total_placements() << "\n";
+    std::cout << "total fills: " << m.total_fills() << "\n";
+    std::cout << "fill rate: " << (m.fill_rate() * 100.0) << "%\n";
+    std::cout << "average time-to-fill: " << m.average_time_to_fill() << " seconds\n";
+    std::cout << "average slippage: " << m.average_slippage_ticks() << " ticks (price*10000 units)\n";
+
     return 0;
 }
